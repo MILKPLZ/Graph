@@ -1,0 +1,212 @@
+from __future__ import annotations
+
+import time
+from typing import Dict, List, Optional, Tuple
+
+from env import DeliveryEnv, Order, Shipper, valid_next_pos
+from solvers.solver import Solver, INF, MOVES, Position, Move
+
+Action = Tuple[Move, object]
+
+
+class MAPDCBSSolver(Solver):
+    """
+    MAPD-CBS V5 — Conflict-Based Search lite.
+    Layer 1: Score-based global task assignment (re-plan every step)
+    Layer 2: Priority-ordered path planning with reservation table + edge-swap check
+    """
+
+    method_name = "MAPDCBSSolver"
+
+    def __init__(self, env: DeliveryEnv):
+        super().__init__(env)
+        self._assignments: Dict[int, int] = {}
+        self._delivery_targets: Dict[int, Position] = {}
+
+    # ------------------------------------------------------------------
+    # Layer 1: Task assignment
+    # ------------------------------------------------------------------
+    def _task_assign(self, obs: dict):
+        t = obs["t"]
+        orders = obs["orders"]
+        shippers = obs["shippers"]
+        self.update_hotspot(obs.get("new_order_ids", []), orders)
+
+        for s in shippers:
+            if s.bag:
+                dest = self.best_delivery_dest(s, orders, t)
+                if dest:
+                    self._delivery_targets[s.id] = dest
+                else:
+                    self._delivery_targets.pop(s.id, None)
+            else:
+                self._delivery_targets.pop(s.id, None)
+
+        unpicked = [o for o in orders.values() if not o.picked and not o.delivered]
+        scores: List[Tuple[float, int, int]] = []
+        for s in shippers:
+            if len(s.bag) >= s.K_max:
+                continue
+            for o in unpicked:
+                sc = self.score_pickup(s, o, t, orders)
+                if sc > -INF:
+                    scores.append((sc, s.id, o.id))
+
+        scores.sort(key=lambda x: -x[0])
+        used_s: set = set()
+        used_o: set = set()
+        new_assign: Dict[int, int] = {}
+        for sc, sid, oid in scores:
+            if sid in used_s or oid in used_o:
+                continue
+            new_assign[sid] = oid
+            used_s.add(sid)
+            used_o.add(oid)
+        self._assignments = new_assign
+
+    # ------------------------------------------------------------------
+    # Priority scoring
+    # ------------------------------------------------------------------
+    def _shipper_urgency(self, s: Shipper, orders: Dict[int, Order], t: int) -> float:
+        urgency = 0.0
+        for oid in s.bag:
+            if oid in orders and not orders[oid].delivered:
+                slack = orders[oid].et - t
+                urgency = max(urgency, 100.0 / max(1, slack))
+                urgency += {1: 0, 2: 1, 3: 3}[orders[oid].p]
+        if s.id in self._assignments and self._assignments[s.id] in orders:
+            o = orders[self._assignments[s.id]]
+            urgency += {1: 0, 2: 1, 3: 2}[o.p]
+        return urgency
+
+    def _get_target(self, s: Shipper, orders: Dict[int, Order], t: int) -> Optional[Position]:
+        pos = (s.r, s.c)
+        # Immediate delivery
+        for oid in s.bag:
+            if oid in orders and not orders[oid].delivered:
+                if (orders[oid].ex, orders[oid].ey) == pos:
+                    return pos
+
+        # Urgency check
+        has_urgent = False
+        if s.bag:
+            threshold = self.urgent_slack_threshold(len(s.bag), s.K_max)
+            for oid in s.bag:
+                if oid in orders and not orders[oid].delivered:
+                    o = orders[oid]
+                    d = self.bfs_distance(pos, (o.ex, o.ey))
+                    if d < INF and o.et - (t + d) < threshold:
+                        has_urgent = True
+                        break
+
+        if has_urgent and s.id in self._delivery_targets:
+            return self._delivery_targets[s.id]
+
+        # Pickup
+        if s.id in self._assignments and len(s.bag) < s.K_max:
+            oid = self._assignments[s.id]
+            if oid in orders and not orders[oid].picked:
+                return (orders[oid].sx, orders[oid].sy)
+
+        # Non-urgent delivery
+        if s.bag and s.id in self._delivery_targets:
+            return self._delivery_targets[s.id]
+
+        return None
+
+    # ------------------------------------------------------------------
+    # Layer 2: Priority-based conflict resolution
+    # ------------------------------------------------------------------
+    def _decide_actions(self, obs: dict) -> Dict[int, Action]:
+        t = obs["t"]
+        orders = obs["orders"]
+        shippers = obs["shippers"]
+
+        sorted_shippers = sorted(shippers, key=lambda s: -self._shipper_urgency(s, orders, t))
+        reserved: Dict[Position, int] = {}
+        current_cells: Dict[int, Position] = {s.id: (s.r, s.c) for s in shippers}
+        actions: Dict[int, Action] = {}
+
+        for s in sorted_shippers:
+            pos = (s.r, s.c)
+
+            can_deliver = any(
+                oid in orders and not orders[oid].delivered
+                and (orders[oid].ex, orders[oid].ey) == pos
+                for oid in s.bag
+            )
+            if can_deliver:
+                actions[s.id] = ("S", 2)
+                reserved[pos] = s.id
+                continue
+
+            target = self._get_target(s, orders, t)
+            if target is None:
+                wander = self.smart_wander_target(s, orders)
+                mv = self.bfs_next_move(pos, wander)
+                nxt = valid_next_pos(pos, mv, self.grid)
+                if nxt in reserved:
+                    mv = "S"
+                    nxt = pos
+                op = self.choose_cargo_op(s, nxt, orders)
+                actions[s.id] = (mv, op)
+                reserved[nxt] = s.id
+                continue
+
+            mv = self.bfs_next_move(pos, target)
+            nxt = valid_next_pos(pos, mv, self.grid)
+
+            # Conflict resolution: pick best alternative
+            if nxt != pos and nxt in reserved:
+                found_alt = False
+                best_alt_mv = "S"
+                best_alt_d = INF
+                for alt_mv in MOVES:
+                    alt_nxt = valid_next_pos(pos, alt_mv, self.grid)
+                    if alt_nxt != pos and alt_nxt not in reserved:
+                        d_alt = self.bfs_distance(alt_nxt, target)
+                        if d_alt < best_alt_d:
+                            best_alt_d = d_alt
+                            best_alt_mv = alt_mv
+                            found_alt = True
+                if found_alt:
+                    d_orig = self.bfs_distance(pos, target)
+                    if best_alt_d <= d_orig + 2:
+                        mv = best_alt_mv
+                        nxt = valid_next_pos(pos, mv, self.grid)
+                    else:
+                        mv = "S"
+                        nxt = pos
+                else:
+                    mv = "S"
+                    nxt = pos
+
+            # Edge swap check
+            if nxt != pos:
+                for other_sid, other_pos in current_cells.items():
+                    if other_sid == s.id:
+                        continue
+                    if other_pos == nxt and other_sid in actions:
+                        other_mv = actions[other_sid][0]
+                        other_nxt = valid_next_pos(other_pos, other_mv, self.grid)
+                        if other_nxt == pos:
+                            mv = "S"
+                            nxt = pos
+                            break
+
+            op = self.choose_cargo_op(s, nxt, orders)
+            actions[s.id] = (mv, op)
+            reserved[nxt] = s.id
+
+        return actions
+
+    def run(self) -> dict:
+        start_time = time.time()
+        obs = self.env.reset()
+        while not obs.get("done", False):
+            self._task_assign(obs)
+            actions = self._decide_actions(obs)
+            obs, _, done, _ = self.env.step(actions)
+            if done:
+                break
+        return self.env.result(self.method_name, elapsed_sec=time.time() - start_time)
