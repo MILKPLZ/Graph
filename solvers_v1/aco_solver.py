@@ -22,7 +22,10 @@ class ACOSolver(Solver):
 
     def __init__(self, env: DeliveryEnv):
         super().__init__(env)
-        self._pheromone: Dict[Tuple[int, int], float] = {}
+        # Order-level pheromone for small/medium maps (cross-shipper info sharing)
+        # For large maze maps (N>=50), per-(shipper,order) to avoid congestion from convergence
+        self._pheromone_shared = self.N < 50
+        self._pheromone: Dict = {}
         self._delivery_targets: Dict[int, Position] = {}
         large_or_dense = self.N > 20 or self.C > self.N
         seed = 42 + self.N * 97 + self.G * 13 + self.C * 7 if large_or_dense else 42
@@ -37,7 +40,8 @@ class ACOSolver(Solver):
         self._rho = 0.2
 
     def _get_pheromone(self, sid: int, oid: int) -> float:
-        return self._pheromone.get((sid, oid), 1.0)
+        key = oid if self._pheromone_shared else (sid, oid)
+        return self._pheromone.get(key, 1.0)
 
     def _evaporate(self):
         for key in list(self._pheromone.keys()):
@@ -50,8 +54,24 @@ class ACOSolver(Solver):
             return
         dep = quality / max(1, len(assignment))
         for sid, oid in assignment.items():
-            k = (sid, oid)
-            self._pheromone[k] = self._pheromone.get(k, 1.0) + dep
+            key = oid if self._pheromone_shared else (sid, oid)
+            self._pheromone[key] = self._pheromone.get(key, 1.0) + dep
+
+    def _order_utility(self, o: Order, free_shippers: List[Shipper], t: int) -> float:
+        """Utility of an order relative to the nearest available shipper."""
+        d2 = self.bfs_distance((o.sx, o.sy), (o.ex, o.ey))
+        if d2 >= INF:
+            return -INF
+        min_d1 = INF
+        for s in free_shippers:
+            d1 = self.bfs_distance((s.r, s.c), (o.sx, o.sy))
+            if d1 < min_d1:
+                min_d1 = d1
+        if min_d1 >= INF:
+            return -INF
+        est_reward = delivery_reward(o, t + min_d1 + d2, self.T)
+        pw = {1: 1.0, 2: 2.5, 3: 5.0}[o.p]
+        return pw * est_reward / max(1, min_d1 + d2)
 
     def _greedy_assign(self, shippers: List[Shipper],
                        orders: Dict[int, Order], t: int) -> Dict[int, int]:
@@ -162,6 +182,8 @@ class ACOSolver(Solver):
             unpicked = [o for o in orders.values() if not o.picked and not o.delivered]
             if unpicked and free:
                 top_k = min(self._candidate_k, len(unpicked))
+                # Use global reward-based scoring for candidate diversity across large maps
+                # Distance-weighted scoring would bias toward nearby orders, starving distant queues
                 scored = sorted(unpicked, key=lambda o:
                     -{1: 1.0, 2: 2.5, 3: 5.0}[o.p] * delivery_reward(o, t + 5, self.T))
                 candidates = scored[:top_k]

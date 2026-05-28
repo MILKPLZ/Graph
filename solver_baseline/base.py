@@ -5,9 +5,11 @@ from collections import deque
 from typing import Dict, Iterable, List, Optional, Tuple
 
 from env import DeliveryEnv, Order, Shipper, is_valid_cell, valid_next_pos
-
+# đại diện cho hướng di chuyển
 Move = str
+# Toạ độ trên lưới, thường là (hàng, cột)
 Position = Tuple[int, int]
+# Đại diện cho hành động của shipper --> ("R", 0): đi sang phải, không có hành động pickup/delivery
 Action = Tuple[Move, int]
 
 INF = 10**9
@@ -24,6 +26,7 @@ class BasicSolver:
 
     method_name = "BasicSolver"
 
+    # Khởi tạo solver với môi trường giao hàng
     def __init__(self, env: DeliveryEnv):
         self.env = env
         self.grid = env.grid
