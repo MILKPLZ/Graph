@@ -1,0 +1,37 @@
+{
+  "config_name": "V_MediumSparse",
+  "orders_total_fixed": 300,
+  "online_generation": true,
+  "results": [
+    {
+      "method": "ACOSolver",
+      "config_name": "V_MediumSparse",
+      "total_orders": 300,
+      "orders_generated": 300,
+      "delivered": 196,
+      "on_time": 76,
+      "late": 120,
+      "missed": 104,
+      "delivery_rate": 65.33333333333333,
+      "on_time_rate": 38.775510204081634,
+      "total_reward": 2058.2287,
+      "total_movecost": -71.2674,
+      "net_reward": 1986.9613,
+      "elapsed_sec": 3.1878,
+      "shipper_rewards": [
+        423.0016,
+        229.4921,
+        229.0647,
+        108.4613,
+        105.4952,
+        161.9092,
+        175.517,
+        136.9055,
+        149.1158,
+        267.9988
+      ],
+      "status": "OK",
+      "wall_sec": 3.22
+    }
+  ]
+}

@@ -1,0 +1,52 @@
+{
+  "config_name": "V_TrafficJam",
+  "orders_total_fixed": 500,
+  "online_generation": true,
+  "results": [
+    {
+      "method": "VRPOrToolsSolver",
+      "config_name": "V_TrafficJam",
+      "total_orders": 500,
+      "orders_generated": 500,
+      "delivered": 461,
+      "on_time": 318,
+      "late": 143,
+      "missed": 39,
+      "delivery_rate": 92.2,
+      "on_time_rate": 68.98047722342733,
+      "total_reward": 7570.31,
+      "total_movecost": -116.5416,
+      "net_reward": 7453.7684,
+      "elapsed_sec": 0.8885,
+      "shipper_rewards": [
+        316.2605,
+        539.9067,
+        435.2736,
+        341.1403,
+        307.7318,
+        443.7988,
+        386.7616,
+        267.8261,
+        321.9913,
+        240.436,
+        407.0226,
+        275.4181,
+        194.5487,
+        207.4504,
+        215.5386,
+        364.0309,
+        233.0666,
+        338.1269,
+        159.4421,
+        270.1221,
+        191.1558,
+        263.2231,
+        267.0754,
+        215.0158,
+        251.4047
+      ],
+      "status": "OK",
+      "wall_sec": 0.9
+    }
+  ]
+}

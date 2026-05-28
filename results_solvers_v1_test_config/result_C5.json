@@ -1,0 +1,107 @@
+{
+  "config_name": "C5",
+  "orders_total_fixed": 80,
+  "online_generation": true,
+  "results": [
+    {
+      "method": "GreedyBFS",
+      "config_name": "C5",
+      "total_orders": 80,
+      "orders_generated": 80,
+      "delivered": 64,
+      "on_time": 50,
+      "late": 14,
+      "missed": 16,
+      "delivery_rate": 80.0,
+      "on_time_rate": 78.125,
+      "total_reward": 1081.2643,
+      "total_movecost": -33.6419,
+      "net_reward": 1047.6224,
+      "elapsed_sec": 0.3068,
+      "shipper_rewards": [
+        273.4361,
+        239.6566,
+        179.6444,
+        189.4993,
+        165.3861
+      ],
+      "status": "OK",
+      "wall_sec": 0.31
+    },
+    {
+      "method": "VRPOrToolsSolver",
+      "config_name": "C5",
+      "total_orders": 80,
+      "orders_generated": 80,
+      "delivered": 73,
+      "on_time": 57,
+      "late": 16,
+      "missed": 7,
+      "delivery_rate": 91.25,
+      "on_time_rate": 78.08219178082192,
+      "total_reward": 1201.6976,
+      "total_movecost": -35.1666,
+      "net_reward": 1166.5309,
+      "elapsed_sec": 0.3157,
+      "shipper_rewards": [
+        246.9953,
+        254.9435,
+        92.7209,
+        360.4533,
+        211.4179
+      ],
+      "status": "OK",
+      "wall_sec": 0.32
+    },
+    {
+      "method": "ACOSolver",
+      "config_name": "C5",
+      "total_orders": 80,
+      "orders_generated": 80,
+      "delivered": 75,
+      "on_time": 56,
+      "late": 19,
+      "missed": 5,
+      "delivery_rate": 93.75,
+      "on_time_rate": 74.66666666666667,
+      "total_reward": 1246.3568,
+      "total_movecost": -31.941,
+      "net_reward": 1214.4158,
+      "elapsed_sec": 0.3511,
+      "shipper_rewards": [
+        245.4449,
+        336.6452,
+        303.3374,
+        179.5083,
+        149.4801
+      ],
+      "status": "OK",
+      "wall_sec": 0.36
+    },
+    {
+      "method": "MAPDCBSSolver",
+      "config_name": "C5",
+      "total_orders": 80,
+      "orders_generated": 80,
+      "delivered": 74,
+      "on_time": 57,
+      "late": 17,
+      "missed": 6,
+      "delivery_rate": 92.5,
+      "on_time_rate": 77.02702702702703,
+      "total_reward": 1235.4155,
+      "total_movecost": -23.8349,
+      "net_reward": 1211.5806,
+      "elapsed_sec": 0.3095,
+      "shipper_rewards": [
+        182.2259,
+        249.5933,
+        336.8419,
+        263.1561,
+        179.7634
+      ],
+      "status": "OK",
+      "wall_sec": 0.31
+    }
+  ]
+}

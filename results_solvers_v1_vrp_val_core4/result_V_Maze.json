@@ -1,0 +1,42 @@
+{
+  "config_name": "V_Maze",
+  "orders_total_fixed": 800,
+  "online_generation": true,
+  "results": [
+    {
+      "method": "VRPOrToolsSolver",
+      "config_name": "V_Maze",
+      "total_orders": 800,
+      "orders_generated": 800,
+      "delivered": 47,
+      "on_time": 16,
+      "late": 31,
+      "missed": 753,
+      "delivery_rate": 5.875,
+      "on_time_rate": 34.04255319148936,
+      "total_reward": 469.9101,
+      "total_movecost": -96.346,
+      "net_reward": 373.5641,
+      "elapsed_sec": 15.7156,
+      "shipper_rewards": [
+        22.972,
+        109.1126,
+        32.1761,
+        2.6479,
+        0.2039,
+        75.8957,
+        -0.8596,
+        15.1547,
+        -19.98,
+        9.9503,
+        35.1192,
+        23.3447,
+        17.8862,
+        -1.1512,
+        51.0917
+      ],
+      "status": "OK",
+      "wall_sec": 15.85
+    }
+  ]
+}

@@ -1,0 +1,95 @@
+{
+  "config_name": "C1",
+  "orders_total_fixed": 15,
+  "online_generation": true,
+  "results": [
+    {
+      "method": "BaselineGreedyBFS",
+      "config_name": "C1",
+      "total_orders": 15,
+      "orders_generated": 15,
+      "delivered": 9,
+      "on_time": 5,
+      "late": 4,
+      "missed": 6,
+      "delivery_rate": 60.0,
+      "on_time_rate": 55.55555555555556,
+      "total_reward": 129.4218,
+      "total_movecost": -0.6205,
+      "net_reward": 128.8014,
+      "elapsed_sec": 0.0194,
+      "shipper_rewards": [
+        121.7793,
+        7.0221
+      ],
+      "status": "OK",
+      "wall_sec": 0.02
+    },
+    {
+      "method": "BaselineVRPOrToolsSolver",
+      "config_name": "C1",
+      "total_orders": 15,
+      "orders_generated": 15,
+      "delivered": 13,
+      "on_time": 13,
+      "late": 0,
+      "missed": 2,
+      "delivery_rate": 86.66666666666667,
+      "on_time_rate": 100.0,
+      "total_reward": 267.3981,
+      "total_movecost": -0.8384,
+      "net_reward": 266.5597,
+      "elapsed_sec": 0.0179,
+      "shipper_rewards": [
+        124.4019,
+        142.1578
+      ],
+      "status": "OK",
+      "wall_sec": 0.02
+    },
+    {
+      "method": "BaselineACOSolver",
+      "config_name": "C1",
+      "total_orders": 15,
+      "orders_generated": 15,
+      "delivered": 13,
+      "on_time": 13,
+      "late": 0,
+      "missed": 2,
+      "delivery_rate": 86.66666666666667,
+      "on_time_rate": 100.0,
+      "total_reward": 267.3981,
+      "total_movecost": -0.8384,
+      "net_reward": 266.5597,
+      "elapsed_sec": 0.019,
+      "shipper_rewards": [
+        124.4019,
+        142.1578
+      ],
+      "status": "OK",
+      "wall_sec": 0.02
+    },
+    {
+      "method": "BaselineMAPDCBSSolver",
+      "config_name": "C1",
+      "total_orders": 15,
+      "orders_generated": 15,
+      "delivered": 9,
+      "on_time": 5,
+      "late": 4,
+      "missed": 6,
+      "delivery_rate": 60.0,
+      "on_time_rate": 55.55555555555556,
+      "total_reward": 128.7453,
+      "total_movecost": -0.6355,
+      "net_reward": 128.1098,
+      "elapsed_sec": 0.0197,
+      "shipper_rewards": [
+        121.0343,
+        7.0755
+      ],
+      "status": "OK",
+      "wall_sec": 0.02
+    }
+  ]
+}

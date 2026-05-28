@@ -5,7 +5,7 @@ import time
 from typing import Dict, List, Optional, Tuple
 
 from env import DeliveryEnv, Order, Shipper, valid_next_pos, delivery_reward
-from solvers.solver import Solver, INF, MOVES, Position, Move
+from solvers_v1.solver import Solver, INF, MOVES, Position, Move
 
 Action = Tuple[Move, object]
 
@@ -24,14 +24,16 @@ class ACOSolver(Solver):
         super().__init__(env)
         self._pheromone: Dict[Tuple[int, int], float] = {}
         self._delivery_targets: Dict[int, Position] = {}
-        self._rng = random.Random(42)
+        large_or_dense = self.N > 20 or self.C > self.N
+        seed = 42 + self.N * 97 + self.G * 13 + self.C * 7 if large_or_dense else 42
+        self._rng = random.Random(seed)
         self._step_counter = 0
 
         # Adaptive ACO params
         self._aco_interval = max(2, self.N // 5)
         self._num_ants = max(4, min(12, self.G // max(1, self.C * 5)))
         self._num_iter = max(2, min(5, 200 // max(1, self.G)))
-        self._candidate_k = max(15, self.G // 5)
+        self._candidate_k = max(10, min(30, self.G // 10)) if large_or_dense else max(15, self.G // 5)
         self._rho = 0.2
 
     def _get_pheromone(self, sid: int, oid: int) -> float:

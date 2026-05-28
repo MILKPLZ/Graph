@@ -4,7 +4,7 @@ import time
 from typing import Dict, List, Optional, Tuple
 
 from env import DeliveryEnv, Order, Shipper, valid_next_pos
-from solvers.solver import Solver, INF, MOVES, Position, Move
+from solvers_v1.solver import Solver, INF, MOVES, Position, Move
 
 Action = Tuple[Move, object]
 
@@ -42,20 +42,35 @@ class MAPDCBSSolver(Solver):
             else:
                 self._delivery_targets.pop(s.id, None)
 
+        use_sticky_assignment = self.N > 20 or self.C > self.N
+        smap = {s.id: s for s in shippers}
+        sticky: Dict[int, int] = {}
+        if use_sticky_assignment:
+            for sid, oid in self._assignments.items():
+                s = smap.get(sid)
+                o = orders.get(oid)
+                if s is None or o is None or o.picked or o.delivered:
+                    continue
+                if len(s.bag) < s.K_max and s.can_carry(o, orders):
+                    sticky[sid] = oid
+
         unpicked = [o for o in orders.values() if not o.picked and not o.delivered]
         scores: List[Tuple[float, int, int]] = []
+        sticky_orders = set(sticky.values())
         for s in shippers:
-            if len(s.bag) >= s.K_max:
+            if len(s.bag) >= s.K_max or s.id in sticky:
                 continue
             for o in unpicked:
+                if o.id in sticky_orders:
+                    continue
                 sc = self.score_pickup(s, o, t, orders)
                 if sc > -INF:
                     scores.append((sc, s.id, o.id))
 
         scores.sort(key=lambda x: -x[0])
-        used_s: set = set()
-        used_o: set = set()
-        new_assign: Dict[int, int] = {}
+        used_s: set = set(sticky)
+        used_o: set = set(sticky.values())
+        new_assign: Dict[int, int] = dict(sticky)
         for sc, sid, oid in scores:
             if sid in used_s or oid in used_o:
                 continue
@@ -73,7 +88,8 @@ class MAPDCBSSolver(Solver):
         for oid in s.bag:
             if oid in orders and not orders[oid].delivered:
                 slack = orders[oid].et - t
-                urgency = max(urgency, 100.0 / max(1, slack))
+                t_scale = max(1, self.T // 240)
+                urgency = max(urgency, 100.0 * t_scale / max(1, slack))
                 urgency += {1: 0, 2: 1, 3: 3}[orders[oid].p]
         if s.id in self._assignments and self._assignments[s.id] in orders:
             o = orders[self._assignments[s.id]]
@@ -172,7 +188,7 @@ class MAPDCBSSolver(Solver):
                             found_alt = True
                 if found_alt:
                     d_orig = self.bfs_distance(pos, target)
-                    if best_alt_d <= d_orig + 2:
+                    if best_alt_d <= d_orig + max(2, self.N // 8):
                         mv = best_alt_mv
                         nxt = valid_next_pos(pos, mv, self.grid)
                     else:

@@ -1,0 +1,37 @@
+{
+  "config_name": "V_MediumSparse",
+  "orders_total_fixed": 300,
+  "online_generation": true,
+  "results": [
+    {
+      "method": "VRPOrToolsSolver",
+      "config_name": "V_MediumSparse",
+      "total_orders": 300,
+      "orders_generated": 300,
+      "delivered": 198,
+      "on_time": 83,
+      "late": 115,
+      "missed": 102,
+      "delivery_rate": 66.0,
+      "on_time_rate": 41.91919191919192,
+      "total_reward": 2406.5096,
+      "total_movecost": -78.9636,
+      "net_reward": 2327.546,
+      "elapsed_sec": 2.408,
+      "shipper_rewards": [
+        194.6028,
+        272.2183,
+        262.42,
+        216.1474,
+        272.9372,
+        321.618,
+        124.5642,
+        213.6867,
+        110.3875,
+        338.9638
+      ],
+      "status": "OK",
+      "wall_sec": 2.44
+    }
+  ]
+}
