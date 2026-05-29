@@ -44,7 +44,7 @@ class MAPDCBSSolver(Solver):
             else:
                 self._delivery_targets.pop(s.id, None)
 
-        use_sticky_assignment = self.N >= 18 or self.C > self.N
+        use_sticky_assignment = self.N >= 20 or self.C > self.N
         smap = {s.id: s for s in shippers}
         sticky: Dict[int, int] = {}
         if use_sticky_assignment:
@@ -88,8 +88,6 @@ class MAPDCBSSolver(Solver):
     # ------------------------------------------------------------------
     def urgent_slack_threshold(self, bag_count: int = 0, k_max: int = 1) -> int:
         avg_cross = self.N * 0.7
-        # For N>=20, moderate urgency multiplier: less than default 1.5 to allow batching
-        # but enough to rush genuinely urgent orders
         urgency_multiplier = 1.3 if self.N >= 20 else 1.5
         base = max(3, int(avg_cross * urgency_multiplier))
         if k_max > 0 and bag_count > 0:
@@ -110,7 +108,7 @@ class MAPDCBSSolver(Solver):
         for oid in s.bag:
             if oid in orders and not orders[oid].delivered:
                 slack = orders[oid].et - t
-                t_scale = max(1, self.T // 240)
+                t_scale = max(1, self.T // 240) if (self.N >= 20 or self.C > self.N) else 1
                 urgency = max(urgency, 100.0 * t_scale / max(1, slack))
                 urgency += {1: 0, 2: 1, 3: 3}[orders[oid].p]
         if s.id in self._assignments and self._assignments[s.id] in orders:
@@ -210,7 +208,8 @@ class MAPDCBSSolver(Solver):
                             found_alt = True
                 if found_alt:
                     d_orig = self.bfs_distance(pos, target)
-                    alt_tol = max(4, self.N // 5) if self.N >= 18 else max(2, self.N // 8)
+                    use_wide_alt = self.N >= 20 or self.C > self.N
+                    alt_tol = max(4, self.N // 5) if use_wide_alt else max(2, self.N // 8)
                     if best_alt_d <= d_orig + alt_tol:
                         mv = best_alt_mv
                         nxt = valid_next_pos(pos, mv, self.grid)
@@ -235,7 +234,8 @@ class MAPDCBSSolver(Solver):
                             break
 
             # Deadlock detection: force a random valid move after 3 consecutive waits
-            if mv == "S" and can_deliver is False:
+            use_deadlock_escape = self.N >= 20 or self.C > self.N
+            if use_deadlock_escape and mv == "S" and can_deliver is False:
                 self._wait_count[s.id] = self._wait_count.get(s.id, 0) + 1
                 if self._wait_count[s.id] >= 3 and target is not None:
                     for forced_mv in MOVES:

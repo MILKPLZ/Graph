@@ -22,6 +22,8 @@ class MAPDCBSSolver(Solver):
         super().__init__(env)
         self._assignments: Dict[int, int] = {}
         self._delivery_targets: Dict[int, Position] = {}
+        self._wait_count: Dict[int, int] = {}
+        self._last_pos: Dict[int, Position] = {}
 
     # ------------------------------------------------------------------
     # Layer 1: Task assignment
@@ -42,20 +44,35 @@ class MAPDCBSSolver(Solver):
             else:
                 self._delivery_targets.pop(s.id, None)
 
+        use_sticky_assignment = self.N >= 20 or self.C > self.N
+        smap = {s.id: s for s in shippers}
+        sticky: Dict[int, int] = {}
+        if use_sticky_assignment:
+            for sid, oid in self._assignments.items():
+                s = smap.get(sid)
+                o = orders.get(oid)
+                if s is None or o is None or o.picked or o.delivered:
+                    continue
+                if len(s.bag) < s.K_max and s.can_carry(o, orders):
+                    sticky[sid] = oid
+
         unpicked = [o for o in orders.values() if not o.picked and not o.delivered]
         scores: List[Tuple[float, int, int]] = []
+        sticky_orders = set(sticky.values())
         for s in shippers:
-            if len(s.bag) >= s.K_max:
+            if len(s.bag) >= s.K_max or s.id in sticky:
                 continue
             for o in unpicked:
+                if o.id in sticky_orders:
+                    continue
                 sc = self.score_pickup(s, o, t, orders)
                 if sc > -INF:
                     scores.append((sc, s.id, o.id))
 
         scores.sort(key=lambda x: -x[0])
-        used_s: set = set()
-        used_o: set = set()
-        new_assign: Dict[int, int] = {}
+        used_s: set = set(sticky)
+        used_o: set = set(sticky.values())
+        new_assign: Dict[int, int] = dict(sticky)
         for sc, sid, oid in scores:
             if sid in used_s or oid in used_o:
                 continue
@@ -66,6 +83,24 @@ class MAPDCBSSolver(Solver):
         self._assignments = new_assign
 
     # ------------------------------------------------------------------
+    # CBS-specific urgency threshold: keep batching on larger maps while
+    # still forcing delivery for genuinely tight carried orders.
+    # ------------------------------------------------------------------
+    def urgent_slack_threshold(self, bag_count: int = 0, k_max: int = 1) -> int:
+        avg_cross = self.N * 0.7
+        urgency_multiplier = 1.3 if self.N >= 20 else 1.5
+        base = max(3, int(avg_cross * urgency_multiplier))
+        if k_max > 0 and bag_count > 0:
+            fill = bag_count / k_max
+            if fill >= 1.0:
+                return 999
+            elif fill >= 0.75:
+                return max(3, base - int(avg_cross * 0.3))
+            elif fill >= 0.5:
+                return max(3, base - int(avg_cross * 0.1))
+        return base
+
+    # ------------------------------------------------------------------
     # Priority scoring
     # ------------------------------------------------------------------
     def _shipper_urgency(self, s: Shipper, orders: Dict[int, Order], t: int) -> float:
@@ -73,7 +108,8 @@ class MAPDCBSSolver(Solver):
         for oid in s.bag:
             if oid in orders and not orders[oid].delivered:
                 slack = orders[oid].et - t
-                urgency = max(urgency, 100.0 / max(1, slack))
+                t_scale = max(1, self.T // 240) if (self.N >= 20 or self.C > self.N) else 1
+                urgency = max(urgency, 100.0 * t_scale / max(1, slack))
                 urgency += {1: 0, 2: 1, 3: 3}[orders[oid].p]
         if s.id in self._assignments and self._assignments[s.id] in orders:
             o = orders[self._assignments[s.id]]
@@ -172,7 +208,9 @@ class MAPDCBSSolver(Solver):
                             found_alt = True
                 if found_alt:
                     d_orig = self.bfs_distance(pos, target)
-                    if best_alt_d <= d_orig + 2:
+                    use_wide_alt = self.N >= 20 or self.C > self.N
+                    alt_tol = max(4, self.N // 5) if use_wide_alt else max(2, self.N // 8)
+                    if best_alt_d <= d_orig + alt_tol:
                         mv = best_alt_mv
                         nxt = valid_next_pos(pos, mv, self.grid)
                     else:
@@ -194,6 +232,22 @@ class MAPDCBSSolver(Solver):
                             mv = "S"
                             nxt = pos
                             break
+
+            # Deadlock escape is only enabled on large/dense maps where
+            # repeated one-cell waits are more expensive than a small detour.
+            use_deadlock_escape = self.N >= 20 or self.C > self.N
+            if use_deadlock_escape and mv == "S" and can_deliver is False:
+                self._wait_count[s.id] = self._wait_count.get(s.id, 0) + 1
+                if self._wait_count[s.id] >= 3 and target is not None:
+                    for forced_mv in MOVES:
+                        forced_nxt = valid_next_pos(pos, forced_mv, self.grid)
+                        if forced_nxt != pos and forced_nxt not in reserved:
+                            mv = forced_mv
+                            nxt = forced_nxt
+                            self._wait_count[s.id] = 0
+                            break
+            else:
+                self._wait_count[s.id] = 0
 
             op = self.choose_cargo_op(s, nxt, orders)
             actions[s.id] = (mv, op)
