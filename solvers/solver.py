@@ -44,6 +44,7 @@ class Solver:
 
         # Valid wander fallback
         self._wander_fallback = self._find_valid_center()
+        self._map_radius: float = self._compute_map_radius()
 
     # ------------------------------------------------------------------
     # BFS
@@ -126,7 +127,8 @@ class Solver:
 
     def urgent_slack_threshold(self, bag_count: int = 0, k_max: int = 1) -> int:
         avg_cross = self.N * 0.7
-        base = max(3, int(avg_cross * 1.5))
+        urgency_multiplier = 0.5 if self.N > 20 else 1.5
+        base = max(3, int(avg_cross * urgency_multiplier))
         if k_max > 0 and bag_count > 0:
             fill = bag_count / k_max
             if fill >= 1.0:
@@ -165,14 +167,18 @@ class Solver:
             score = pw * max(0.001, efficiency) * late_factor
 
         # Relative distance penalty
-        rel_d = d1 / max(1, self.N)
+        rel_d = d1 / max(1.0, self._map_radius)
         if rel_d > 1.5:
             score *= 0.4
         elif rel_d > 0.8:
             score *= 0.7
 
         hs = self._hotspot_counts.get((order.sx, order.sy), 0)
-        score += hs * 0.05
+        if hs > 0:
+            if self.N > 20 or self.C > self.N:
+                score += hs * max(0.01, abs(score) * 0.02)
+            else:
+                score += hs * 0.05
         return score
 
     def score_delivery(self, shipper: Shipper, order: Order, t: int) -> float:
@@ -294,6 +300,16 @@ class Solver:
                         if is_valid_cell(p, self.grid):
                             return p
         return (1, 1)
+
+    def _compute_map_radius(self) -> float:
+        """90th-percentile BFS distance from a valid center, never below N."""
+        center = self._find_valid_center()
+        parent = self._bfs_from(center)
+        dists = sorted(self._dist_cache.get((center, pos), 0) for pos in parent)
+        if len(dists) < 4:
+            return max(1.0, float(self.N))
+        idx = max(0, int(len(dists) * 0.9) - 1)
+        return max(float(self.N), float(dists[idx]))
 
     def smart_wander_target(self, shipper: Shipper,
                             orders: Dict[int, Order]) -> Position:

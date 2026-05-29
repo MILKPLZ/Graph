@@ -4,7 +4,7 @@ import time
 from typing import Dict, List, Optional, Tuple
 
 from env import DeliveryEnv, Order, Shipper, valid_next_pos
-from solvers.solver import Solver, INF, MOVES, Position, Move
+from solvers_v1.solver import Solver, INF, MOVES, Position, Move
 
 Action = Tuple[Move, object]
 
@@ -106,7 +106,7 @@ class GreedyBFS(Solver):
                 pickup = self._select_pickup(shipper, orders, reserved, t)
                 if pickup is not None:
                     d = self.bfs_distance(pos, (pickup.sx, pickup.sy))
-                    if d <= self.N:
+                    if d <= self._map_radius:
                         reserved.add(pickup.id)
                     goal = (pickup.sx, pickup.sy)
                     mv = self.bfs_next_move(pos, goal)

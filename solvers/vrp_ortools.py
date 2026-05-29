@@ -4,7 +4,7 @@ import time
 from typing import Dict, List, Optional, Tuple
 
 from env import DeliveryEnv, Order, Shipper, valid_next_pos
-from solvers.solver import Solver, INF, MOVES, Position, Move
+from solvers_v1.solver import Solver, INF, MOVES, Position, Move
 
 Action = Tuple[Move, object]
 
@@ -44,7 +44,8 @@ class VRPOrToolsSolver(Solver):
         # Global score matrix
         unpicked = [o for o in orders.values() if not o.picked and not o.delivered]
         scores: List[Tuple[float, int, int]] = []
-        detour_thresh = max(3, self.N // 4)
+        use_generalized_detour = self.N > 20 or self.C > self.N
+        detour_thresh = max(3, self.N // 2) if use_generalized_detour else max(3, self.N // 4)
 
         for s in shippers:
             if len(s.bag) >= s.K_max:
@@ -57,7 +58,7 @@ class VRPOrToolsSolver(Solver):
                         dd = self._delivery_targets[s.id]
                         d_detour = self.bfs_distance(dd, (o.sx, o.sy))
                         if d_detour < detour_thresh:
-                            bonus = 2.0
+                            bonus = max(0.5, sc * 0.15) if use_generalized_detour else 2.0
                     scores.append((sc + bonus, s.id, o.id))
 
         scores.sort(key=lambda x: -x[0])

@@ -4,7 +4,7 @@ import time
 from typing import Dict, List, Optional, Tuple
 
 from env import DeliveryEnv, Order, Shipper, valid_next_pos
-from solvers.solver import Solver, INF, MOVES, Position, Move
+from solvers_v1.solver import Solver, INF, MOVES, Position, Move
 
 Action = Tuple[Move, object]
 
@@ -83,8 +83,8 @@ class MAPDCBSSolver(Solver):
         self._assignments = new_assign
 
     # ------------------------------------------------------------------
-    # CBS-specific urgency threshold: keep batching on larger maps while
-    # still forcing delivery for genuinely tight carried orders.
+    # CBS-specific urgency threshold: less aggressive on large maps
+    # to allow batching before forcing delivery mode
     # ------------------------------------------------------------------
     def urgent_slack_threshold(self, bag_count: int = 0, k_max: int = 1) -> int:
         avg_cross = self.N * 0.7
@@ -233,8 +233,7 @@ class MAPDCBSSolver(Solver):
                             nxt = pos
                             break
 
-            # Deadlock escape is only enabled on large/dense maps where
-            # repeated one-cell waits are more expensive than a small detour.
+            # Deadlock detection: force a random valid move after 3 consecutive waits
             use_deadlock_escape = self.N >= 20 or self.C > self.N
             if use_deadlock_escape and mv == "S" and can_deliver is False:
                 self._wait_count[s.id] = self._wait_count.get(s.id, 0) + 1
