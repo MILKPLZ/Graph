@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections import deque
+from collections import OrderedDict, deque
 from typing import Dict, List, Optional, Tuple
 
 from env import (
@@ -13,6 +13,7 @@ Move = str
 Position = Tuple[int, int]
 INF = 10**9
 MOVES: Tuple[Move, ...] = ("U", "D", "L", "R")
+OPPOSITE_MOVE: Dict[Move, Move] = {"U": "D", "D": "U", "L": "R", "R": "L", "S": "S"}
 
 
 class Solver:
@@ -37,6 +38,9 @@ class Solver:
         self._dist_cache: Dict[Tuple[Position, Position], int] = {}
         self._parent_cache: Dict[Position, Dict[Position, Tuple[Optional[Position], Move]]] = {}
         self._next_move_cache: Dict[Tuple[Position, Position], Move] = {}
+        self._dist_keys_by_root: Dict[Position, set[Tuple[Position, Position]]] = {}
+        self._bfs_root_limit: Optional[int] = max(80, 4 * self.C) if self.N >= 50 else None
+        self._bfs_root_lru: "OrderedDict[Position, None]" = OrderedDict()
 
         # Hotspot tracking (learned from obs only)
         self._hotspot_counts: Dict[Position, float] = {}
@@ -55,8 +59,29 @@ class Solver:
             if nxt != pos:
                 yield move, nxt
 
+    def _touch_bfs_root(self, root: Position) -> None:
+        if self._bfs_root_limit is None:
+            return
+        self._bfs_root_lru[root] = None
+        self._bfs_root_lru.move_to_end(root)
+        while len(self._bfs_root_lru) > self._bfs_root_limit:
+            old_root, _ = self._bfs_root_lru.popitem(last=False)
+            self._parent_cache.pop(old_root, None)
+            for key in list(self._dist_keys_by_root.pop(old_root, set())):
+                self._dist_cache.pop(key, None)
+            self._next_move_cache = {
+                key: val for key, val in self._next_move_cache.items()
+                if key[0] != old_root and key[1] != old_root
+            }
+
+    def _remember_dist_key(self, key: Tuple[Position, Position]) -> None:
+        if self._bfs_root_limit is None:
+            return
+        self._dist_keys_by_root.setdefault(key[0], set()).add(key)
+
     def _bfs_from(self, start: Position):
         if start in self._parent_cache:
+            self._touch_bfs_root(start)
             return self._parent_cache[start]
         if not is_valid_cell(start, self.grid):
             return {}
@@ -72,8 +97,11 @@ class Solver:
                 dist[nxt] = dist[cur] + 1
                 queue.append(nxt)
         for pos, d in dist.items():
-            self._dist_cache[(start, pos)] = d
+            key = (start, pos)
+            self._dist_cache[key] = d
+            self._remember_dist_key(key)
         self._parent_cache[start] = parent
+        self._touch_bfs_root(start)
         return parent
 
     def bfs_distance(self, start: Position, goal: Position) -> int:
@@ -86,6 +114,7 @@ class Solver:
         if rev_key in self._dist_cache:
             d = self._dist_cache[rev_key]
             self._dist_cache[key] = d
+            self._remember_dist_key(key)
             return d
         self._bfs_from(start)
         return self._dist_cache.get(key, INF)
@@ -110,6 +139,24 @@ class Solver:
                 self._next_move_cache[key] = mv
                 return mv
             cur = prev
+
+    def bfs_next_move_from_goal(self, start: Position, goal: Position) -> Move:
+        if start == goal:
+            return "S"
+        key = (start, goal)
+        if key in self._next_move_cache:
+            return self._next_move_cache[key]
+        parent = self._bfs_from(goal)
+        if start not in parent:
+            self._next_move_cache[key] = "S"
+            return "S"
+        prev, mv_from_prev = parent[start]
+        if prev is None:
+            self._next_move_cache[key] = "S"
+            return "S"
+        mv = OPPOSITE_MOVE.get(mv_from_prev, "S")
+        self._next_move_cache[key] = mv
+        return mv
 
     # ------------------------------------------------------------------
     # Adaptive urgency threshold (NO hardcoded values)

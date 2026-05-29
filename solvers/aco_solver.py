@@ -5,7 +5,7 @@ import time
 from typing import Dict, List, Optional, Tuple
 
 from env import DeliveryEnv, Order, Shipper, valid_next_pos, delivery_reward
-from solvers_v1.solver import Solver, INF, MOVES, Position, Move
+from solvers.solver import Solver, INF, MOVES, Position, Move
 
 Action = Tuple[Move, object]
 
